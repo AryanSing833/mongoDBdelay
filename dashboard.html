@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Delivery Fleet Command & Risk Predictor</title>
+  <meta name="description" content="Enterprise-grade logistics intelligence platform for real-time delivery fleet monitoring, ML-powered delay prediction, and MongoDB analytics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    /* ─── CSS RESET & TOKENS ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-base:       #060d1b;
+      --bg-surface:    #0f172a;
+      --bg-card:       rgba(255,255,255,0.04);
+      --bg-card-hover: rgba(255,255,255,0.07);
+      --border:        rgba(255,255,255,0.08);
+      --border-glow:   rgba(56,189,248,0.35);
+      --accent-blue:   #38bdf8;
+      --accent-green:  #34d399;
+      --accent-orange: #fb923c;
+      --accent-red:    #f87171;
+      --accent-purple: #a78bfa;
+      --text-primary:  #f1f5f9;
+      --text-secondary:#94a3b8;
+      --text-muted:    #475569;
+      --sidebar-w:     260px;
+      --radius:        14px;
+      --radius-sm:     8px;
+      --transition:    0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-primary); overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 9999px; }
+
+    /* ─── LAYOUT ─────────────────────────────────────────────────── */
+    .app { display: flex; min-height: 100vh; }
+
+    /* ─── SIDEBAR ────────────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w); flex-shrink: 0; background: var(--bg-surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
+      transition: transform var(--transition);
+    }
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: linear-gradient(135deg, rgba(56,189,248,.15), rgba(52,211,153,.15));
+      border: 1px solid var(--border-glow); border-radius: var(--radius-sm);
+      padding: 8px 12px;
+    }
+    .logo-icon { width: 28px; height: 28px; color: var(--accent-blue); }
+    .logo-text { font-size: 13px; font-weight: 700; letter-spacing: .5px; color: var(--text-primary); line-height: 1.2; }
+    .logo-sub { font-size: 10px; color: var(--text-muted); font-weight: 400; letter-spacing: .3px; }
+
+    .nav { padding: 16px 12px; flex: 1; }
+    .nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-muted); text-transform: uppercase; padding: 0 8px 8px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 12px; padding: 11px 12px;
+      border-radius: var(--radius-sm); cursor: pointer; color: var(--text-secondary);
+      font-size: 13.5px; font-weight: 500; transition: all var(--transition);
+      position: relative; margin-bottom: 2px; text-decoration: none;
+    }
+    .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(56,189,248,.12), rgba(52,211,153,.08));
+      color: var(--accent-blue);
+      border: 1px solid rgba(56,189,248,.2);
+    }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: -1px; top: 20%; bottom: 20%;
+      width: 3px; background: var(--accent-blue); border-radius: 9999px;
+    }
+    .nav-item .nav-icon { width: 17px; height: 17px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; font-size: 10px; font-weight: 700;
+      background: rgba(251,146,60,.15); color: var(--accent-orange);
+      border-radius: 99px; padding: 2px 7px;
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-blue), var(--accent-green)); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--bg-base); flex-shrink: 0; }
+    .avatar-info { flex: 1; min-width: 0; }
+    .avatar-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+    .avatar-role { font-size: 10.5px; color: var(--text-muted); }
+
+    /* ─── MAIN ───────────────────────────────────────────────────── */
+    .main { flex: 1; margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ─── TOP BAR ────────────────────────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0; z-index: 40; background: rgba(6,13,27,.85);
+      backdrop-filter: blur(16px); border-bottom: 1px solid var(--border);
+      padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+    .topbar-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-status {
+      display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--accent-green);
+      background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.25); border-radius: 99px; padding: 5px 12px;
+    }
+    .status-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; animation: pulse 2s infinite; }
+    .topbar-btn {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 7px 10px; cursor: pointer; color: var(--text-secondary); transition: all var(--transition);
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
+    }
+    .topbar-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+    /* ─── CONTENT ────────────────────────────────────────────────── */
+    .content { flex: 1; padding: 32px; overflow-y: auto; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ─── METRICS GRID ───────────────────────────────────────────── */
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .metric-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 22px; position: relative; overflow: hidden; transition: all var(--transition);
+      cursor: default;
+    }
+    .metric-card::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-color, var(--accent-blue)), transparent);
+    }
+    .metric-card:hover { background: var(--bg-card-hover); border-color: rgba(255,255,255,.12); transform: translateY(-1px); }
+    .metric-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+    .metric-value { font-size: 32px; font-weight: 800; color: var(--text-primary); letter-spacing: -1px; }
+    .metric-value span { font-size: 16px; font-weight: 500; color: var(--text-secondary); }
+    .metric-change {
+      margin-top: 8px; font-size: 11.5px; font-weight: 500; display: flex; align-items: center; gap: 4px;
+    }
+    .metric-change.up { color: var(--accent-green); }
+    .metric-change.down { color: var(--accent-red); }
+    .metric-change.warn { color: var(--accent-orange); }
+    .metric-icon {
+      position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+      width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.05);
+      color: var(--card-color, var(--accent-blue));
+    }
+
+    /* ─── GRID LAYOUTS ───────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+
+    /* ─── CARDS ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+      transition: border-color var(--transition);
+    }
+    .card:hover { border-color: rgba(255,255,255,.12); }
+    .card-header {
+      padding: 18px 22px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+    .card-title-icon { width: 16px; height: 16px; color: var(--accent-blue); }
+    .card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .card-body { padding: 22px; }
+    .card-badge {
+      font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px;
+      background: rgba(56,189,248,.1); color: var(--accent-blue); border: 1px solid rgba(56,189,248,.2);
+    }
+
+    /* ─── TABLE ──────────────────────────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th {
+      text-align: left; padding: 10px 14px; font-size: 10.5px; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td { padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,.04); color: var(--text-secondary); vertical-align: middle; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr { transition: background var(--transition); }
+    .data-table tbody tr:hover { background: var(--bg-card-hover); }
+
+    /* ─── BADGES ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+      font-weight: 600; padding: 3px 9px; border-radius: 99px;
+    }
+    .badge-green  { background: rgba(52,211,153,.12); color: var(--accent-green); border: 1px solid rgba(52,211,153,.2); }
+    .badge-blue   { background: rgba(56,189,248,.12); color: var(--accent-blue); border: 1px solid rgba(56,189,248,.2); }
+    .badge-orange { background: rgba(251,146,60,.12); color: var(--accent-orange); border: 1px solid rgba(251,146,60,.2); }
+    .badge-red    { background: rgba(248,113,113,.12); color: var(--accent-red); border: 1px solid rgba(248,113,113,.2); }
+    .badge-purple { background: rgba(167,139,250,.12); color: var(--accent-purple); border: 1px solid rgba(167,139,250,.2); }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ─── ML PREDICTOR ───────────────────────────────────────────── */
+    .predictor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .form-group { margin-bottom: 18px; }
+    .form-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .form-input, .form-select {
+      width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 11px 14px; color: var(--text-primary);
+      font-family: inherit; font-size: 14px; transition: all var(--transition);
+      outline: none;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(56,189,248,.1); }
+    .form-select option { background: var(--bg-surface); }
+    .slider-wrap { position: relative; }
+    .slider-input {
+      width: 100%; -webkit-appearance: none; height: 6px; border-radius: 99px;
+      background: rgba(255,255,255,.08); outline: none; cursor: pointer;
+    }
+    .slider-input::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent-blue); cursor: pointer; border: 2px solid var(--bg-base);
+      box-shadow: 0 0 8px rgba(56,189,248,.5);
+    }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 5px; }
+    .slider-value {
+      font-size: 13px; font-weight: 700; color: var(--accent-blue); float: right; margin-bottom: 4px;
+    }
+    .run-btn {
+      width: 100%; padding: 14px; background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: 1px solid rgba(56,189,248,.3); border-radius: var(--radius-sm);
+      color: white; font-family: inherit; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: all var(--transition); display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 8px; letter-spacing: .3px;
+    }
+    .run-btn:hover { background: linear-gradient(135deg, #0369a1, #075985); box-shadow: 0 4px 20px rgba(56,189,248,.25); transform: translateY(-1px); }
+    .run-btn:active { transform: translateY(0); }
+    .run-btn.loading { opacity: .7; cursor: wait; }
+
+    /* ─── PREDICTION OUTPUT ──────────────────────────────────────── */
+    .prediction-box {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 300px; text-align: center; transition: all .5s cubic-bezier(0.4,0,0.2,1);
+    }
+    .prediction-placeholder { color: var(--text-muted); font-size: 14px; }
+    .prediction-placeholder-icon { width: 48px; height: 48px; margin: 0 auto 12px; color: var(--text-muted); opacity: .4; }
+    .prediction-result { width: 100%; }
+    .prediction-badge {
+      display: inline-flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800;
+      padding: 14px 28px; border-radius: var(--radius); margin-bottom: 20px;
+    }
+    .prediction-badge.on-time { background: rgba(52,211,153,.15); color: var(--accent-green); border: 2px solid rgba(52,211,153,.4); }
+    .prediction-badge.delayed { background: rgba(248,113,113,.15); color: var(--accent-red); border: 2px solid rgba(248,113,113,.4); }
+    .confidence-row { display: flex; justify-content: center; gap: 24px; margin-bottom: 24px; }
+    .conf-item { text-align: center; }
+    .conf-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; }
+    .conf-value { font-size: 22px; font-weight: 800; }
+    .conf-value.green { color: var(--accent-green); }
+    .conf-value.red { color: var(--accent-red); }
+
+    .feature-importance { text-align: left; width: 100%; }
+    .fi-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+    .fi-bar-row { margin-bottom: 10px; }
+    .fi-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+    .fi-bar-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
+    .fi-bar-fill { height: 100%; border-radius: 99px; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+
+    /* ─── MONGO SCHEMA ───────────────────────────────────────────── */
+    .schema-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .code-block {
+      background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.06); border-radius: var(--radius-sm);
+      padding: 18px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7;
+      overflow-x: auto; color: #a9d4f5; position: relative;
+    }
+    .code-block .ky { color: #79c0ff; }
+    .code-block .st { color: #a5d6ff; }
+    .code-block .nb { color: var(--accent-green); }
+    .code-block .cm { color: #6a737d; }
+    .code-block .kw { color: var(--accent-orange); }
+    .code-block .vl { color: #c3b5fd; }
+    .code-copy {
+      position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,.07);
+      border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+      font-size: 10px; color: var(--text-muted); cursor: pointer; transition: all var(--transition);
+    }
+    .code-copy:hover { background: rgba(255,255,255,.12); color: var(--text-primary); }
+    .validation-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .v-pill {
+      font-size: 11px; padding: 4px 11px; border-radius: 99px; font-weight: 500;
+      background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.15); color: var(--accent-blue);
+    }
+    .collection-flow { display: flex; align-items: center; gap: 16px; padding: 20px; background: rgba(0,0,0,.3); border-radius: var(--radius-sm); margin-top: 16px; }
+    .coll-box { flex: 1; text-align: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+    .coll-name { font-size: 14px; font-weight: 700; color: var(--accent-blue); margin-bottom: 6px; }
+    .coll-desc { font-size: 11px; color: var(--text-muted); }
+    .flow-arrow { color: var(--accent-orange); font-size: 20px; font-weight: 700; }
+
+    /* ─── AGGREGATION ANALYTICS ──────────────────────────────────── */
+    .agg-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .pipeline-tag {
+      font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+      padding: 3px 9px; border-radius: 99px; background: rgba(167,139,250,.1);
+      color: var(--accent-purple); border: 1px solid rgba(167,139,250,.2);
+    }
+    .agg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+    .agg-stat-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; text-align: center; transition: all var(--transition);
+    }
+    .agg-stat-card:hover { border-color: rgba(167,139,250,.3); background: var(--bg-card-hover); }
+    .agg-stat-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(167,139,250,.1); color: var(--accent-purple); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+    .agg-stat-val { font-size: 26px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
+    .agg-stat-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+    .chart-wrap { height: 240px; position: relative; }
+    .driver-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .driver-row:last-child { border-bottom: none; }
+    .driver-rank { font-size: 11px; font-weight: 700; color: var(--text-muted); width: 20px; text-align: center; }
+    .driver-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, rgba(56,189,248,.3), rgba(52,211,153,.3)); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--accent-blue); flex-shrink: 0; }
+    .driver-info { flex: 1; min-width: 0; }
+    .driver-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .driver-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .driver-bar-wrap { width: 80px; }
+    .driver-bar-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
+    .driver-bar-fill { height: 100%; border-radius: 99px; }
+
+    /* ─── FLEET TABLE VIEW ───────────────────────────────────────── */
+    .search-bar {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+      margin-bottom: 20px; transition: border-color var(--transition);
+    }
+    .search-bar:focus-within { border-color: var(--accent-blue); }
+    .search-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-family: inherit; font-size: 13.5px; }
+    .search-input::placeholder { color: var(--text-muted); }
+    .filter-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .filter-btn {
+      padding: 7px 14px; border-radius: 99px; font-size: 12px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .filter-btn:hover, .filter-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(56,189,248,.08); }
+
+    /* ─── ANIMATIONS ─────────────────────────────────────────────── */
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes countUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes glow { 0%,100%{box-shadow:0 0 15px rgba(56,189,248,.15)} 50%{box-shadow:0 0 30px rgba(56,189,248,.35)} }
+    .animate-in { animation: fadeIn .4s ease both; }
+    .view.active { animation: fadeIn .3s ease both; }
+
+    /* ─── SECTION HEADERS ────────────────────────────────────────── */
+    .section-header { margin-bottom: 20px; }
+    .section-title { font-size: 20px; font-weight: 800; color: var(--text-primary); letter-spacing: -.3px; }
+    .section-desc { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* ─── DIVIDERS ───────────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    /* ─── LOADING SHIMMER ────────────────────────────────────────── */
+    @keyframes shimmer { from{background-position:-200% 0} to{background-position:200% 0} }
+    .shimmer {
+      background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite;
+    }
+
+    /* ─── MOBILE MENU TOGGLE ─────────────────────────────────────── */
+    .menu-toggle { display: none; }
+    @media(max-width:900px){
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .menu-toggle { display: flex; }
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .predictor-grid, .schema-grid, .grid-2 { grid-template-columns: 1fr; }
+      .agg-grid { grid-template-columns: 1fr; }
+      .content { padding: 20px; }
+    }
+    @media(max-width:500px){
+      .metrics-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─── SIDEBAR ─────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-badge">
+        <i data-lucide="truck" class="logo-icon"></i>
+        <div>
+          <div class="logo-text">FleetCommand</div>
+          <div class="logo-sub">Risk Predictor v2.0</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section-label">Overview</div>
+      <a class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+        <i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard
+      </a>
+      <a class="nav-item" id="nav-fleet" onclick="switchView('fleet')">
+        <i data-lucide="truck" class="nav-icon"></i> Active Fleet
+        <span class="nav-badge">32</span>
+      </a>
+      <br/>
+      <div class="nav-section-label">Analytics</div>
+      <a class="nav-item" id="nav-ml" onclick="switchView('ml')">
+        <i data-lucide="brain" class="nav-icon"></i> ML Predictions
+      </a>
+      <a class="nav-item" id="nav-mongo" onclick="switchView('mongo')">
+        <i data-lucide="database" class="nav-icon"></i> MongoDB Schema
+      </a>
+      <a class="nav-item" id="nav-agg" onclick="switchView('agg')">
+        <i data-lucide="bar-chart-3" class="nav-icon"></i> Aggregations
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="avatar">A</div>
+      <div class="avatar-info">
+        <div class="avatar-name">Aryan</div>
+        <div class="avatar-role">Fleet Administrator</div>
+      </div>
+      <i data-lucide="settings" style="width:15px;height:15px;color:var(--text-muted);cursor:pointer;"></i>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN ─────────────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="topbar-btn menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+          <i data-lucide="menu" style="width:16px;height:16px;"></i>
+        </button>
+        <div>
+          <div class="topbar-title" id="topbar-title">Dashboard Overview</div>
+          <div class="topbar-subtitle">Smart Delivery Fleet Command & Risk Predictor</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-status" id="sys-status"><div class="status-dot"></div> Connecting…</div>
+        <button class="topbar-btn" onclick="refreshMetrics()">
+          <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i> Refresh
+        </button>
+        <button class="topbar-btn">
+          <i data-lucide="bell" style="width:13px;height:13px;"></i>
+          <span style="background:var(--accent-orange);width:6px;height:6px;border-radius:50%;display:inline-block;margin-left:-2px;margin-top:-6px;"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ═══════════════════════════════════ DASHBOARD ══ -->
+      <div class="view active" id="view-dashboard">
+        <div class="section-header">
+          <div class="section-title">Command Center</div>
+          <div class="section-desc">Real-time overview of fleet operations and delivery performance.</div>
+        </div>
+
+        <!-- METRICS GRID -->
+        <div class="metrics-grid" id="metrics-grid">
+          <div class="metric-card" style="--card-color:var(--accent-blue)">
+            <div class="metric-label">Total Active Orders</div>
+            <div class="metric-value" id="m-orders">—</div>
+            <div class="metric-change up"><i data-lucide="trending-up" style="width:12px;height:12px;"></i> +12 this hour</div>
+            <div class="metric-icon"><i data-lucide="package" style="width:22px;height:22px;"></i></div>
+          </div>
+          <div class="metric-card" style="--card-color:var(--accent-green)">
+            <div class="metric-label">Fleet On‑Time Rate</div>
+            <div class="metric-value" id="m-ontime">—<span>%</span></div>
+            <div class="metric-change up"><i data-lucide="trending-up" style="width:12px;height:12px;"></i> +2.1% vs yesterday</div>
+            <div class="metric-icon"><i data-lucide="check-circle" style="width:22px;height:22px;"></i></div>
+          </div>
+          <div class="metric-card" style="--card-color:var(--accent-orange)">
+            <div class="metric-label">High‑Risk Delay Predictions</div>
+            <div class="metric-value" id="m-risk">—</div>
+            <div class="metric-change warn"><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> 3 critical</div>
+            <div class="metric-icon"><i data-lucide="alert-octagon" style="width:22px;height:22px;"></i></div>
+          </div>
+          <div class="metric-card" style="--card-color:var(--accent-purple)">
+            <div class="metric-label">Avg Transit Time</div>
+            <div class="metric-value" id="m-transit">—<span>h</span></div>
+            <div class="metric-change down"><i data-lucide="trending-down" style="width:12px;height:12px;"></i> -0.3h improved</div>
+            <div class="metric-icon"><i data-lucide="clock" style="width:22px;height:22px;"></i></div>
+          </div>
+        </div>
+
+        <!-- CHARTS ROW -->
+        <div class="grid-3" style="margin-bottom:20px;">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title"><i data-lucide="activity" class="card-title-icon"></i> Delivery Volume (7 Days)</div>
+                <div class="card-sub">Total dispatched orders by day</div>
+              </div>
+              <span class="card-badge">Live</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap"><canvas id="volumeChart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i data-lucide="pie-chart" class="card-title-icon"></i> Status Breakdown</div>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT ORDERS -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><i data-lucide="list" class="card-title-icon"></i> Recent Orders</div>
+              <div class="card-sub">Live feed of the latest 6 delivery orders</div>
+            </div>
+            <button class="topbar-btn" onclick="switchView('fleet')">View All</button>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Order ID</th><th>Driver</th><th>Distance</th><th>Shipping</th><th>Status</th><th>Risk</th>
+                </tr>
+              </thead>
+              <tbody id="recent-orders"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ FLEET ══════ -->
+      <div class="view" id="view-fleet">
+        <div class="section-header">
+          <div class="section-title">Active Fleet Monitor</div>
+          <div class="section-desc">Track all delivery orders, drivers, and real-time statuses.</div>
+        </div>
+        <div class="search-bar">
+          <i data-lucide="search" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          <input class="search-input" id="fleet-search" placeholder="Search by Order ID, Driver, or Status…" oninput="filterFleet()" />
+        </div>
+        <div class="filter-row">
+          <button class="filter-btn active" onclick="setFilter('All',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('On Time',this)">On Time</button>
+          <button class="filter-btn" onclick="setFilter('Delayed',this)">Delayed</button>
+          <button class="filter-btn" onclick="setFilter('Severely Delayed',this)">Severely Delayed</button>
+          <button class="filter-btn" onclick="setFilter('Cancelled',this)">Cancelled</button>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding:0;">
+            <table class="data-table">
+              <thead>
+                <tr><th>Order ID</th><th>Driver</th><th>Distance (km)</th><th>Traffic Delay</th><th>Weather Delay</th><th>Weight (kg)</th><th>Status</th><th>Delay Risk</th></tr>
+              </thead>
+              <tbody id="fleet-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ ML ═════════ -->
+      <div class="view" id="view-ml">
+        <div class="section-header">
+          <div class="section-title">ML Delay Risk Predictor</div>
+          <div class="section-desc">Leakage-safe Random Forest trained on ecommerce logistics data using information available before delivery starts.</div>
+        </div>
+        <div class="predictor-grid">
+          <!-- INPUT PANEL -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i data-lucide="sliders-horizontal" class="card-title-icon"></i> Feature Inputs</div>
+              <span class="card-badge">RandomForest</span>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Distance (km)</label>
+                <input class="form-input" type="number" id="f-distance" value="180" min="4" max="900" placeholder="Distance KM" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  Traffic Delay (minutes)
+                  <span class="slider-value" id="traffic-label">20</span>
+                </label>
+                <div class="slider-wrap">
+                  <input class="slider-input" type="range" id="f-traffic" min="0" max="80" step="1" value="20" oninput="document.getElementById('traffic-label').textContent=this.value" />
+                  <div class="slider-labels"><span>0 min</span><span>40</span><span>80 min</span></div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Package Weight (kg)</label>
+                <input class="form-input" type="number" id="f-weight" value="1.5" min="0.1" max="12" step="0.1" placeholder="0.1 – 12 kg" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  Weather Delay (minutes)
+                  <span class="slider-value" id="weather-label">3</span>
+                </label>
+                <div class="slider-wrap">
+                  <input class="slider-input" type="range" id="f-weather" min="0" max="40" step="0.5" value="3" oninput="document.getElementById('weather-label').textContent=this.value" />
+                  <div class="slider-labels"><span>0 min</span><span>20</span><span>40 min</span></div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Shipping Method</label>
+                <select class="form-select" id="f-shipping">
+                  <option value="Standard">Standard</option>
+                  <option value="Express">Express</option>
+                  <option value="Economy">Economy</option>
+                  <option value="Same Day">Same Day</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Warehouse Processing (hours)</label>
+                <input class="form-input" type="number" id="f-wh" value="4" min="0" max="24" step="0.1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Warehouse Capacity Utilization (%)</label>
+                <input class="form-input" type="number" id="f-capacity" value="75" min="0" max="100" step="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Inventory Availability (%)</label>
+                <input class="form-input" type="number" id="f-inventory" value="90" min="0" max="100" step="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Package Volume (cm³)</label>
+                <input class="form-input" type="number" id="f-volume" value="1200" min="0" step="10" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Order Value</label>
+                <input class="form-input" type="number" id="f-order-value" value="80" min="0" step="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Courier Rating</label>
+                <input class="form-input" type="number" id="f-rating" value="4.2" min="0" max="5" step="0.1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Courier Experience (years)</label>
+                <input class="form-input" type="number" id="f-experience" value="4" min="0" max="50" step="0.5" />
+              </div>
+              <div class="form-group" style="display:flex;gap:18px;align-items:center;">
+                <label class="form-label" style="margin:0;">
+                  <input type="checkbox" id="f-weekend" />
+                  Weekend order
+                </label>
+                <label class="form-label" style="margin:0;">
+                  <input type="checkbox" id="f-holiday" />
+                  Holiday order
+                </label>
+              </div>
+              <button class="run-btn" id="predict-btn" onclick="runPrediction()">
+                <i data-lucide="cpu" style="width:16px;height:16px;"></i> Run Prediction
+              </button>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:10px;text-align:center;" id="model-train-note">
+                Model: Random Forest · leakage-safe features · inputs saved to MongoDB · retrains after 100 labeled outcomes
+              </div>
+            </div>
+          </div>
+
+          <!-- OUTPUT PANEL -->
+          <div>
+            <div class="prediction-box" id="prediction-box">
+              <div class="prediction-placeholder">
+                <i data-lucide="cpu" class="prediction-placeholder-icon"></i>
+                <div>Configure parameters and click</div>
+                <div style="font-weight:600;color:var(--text-secondary);margin-top:4px;">"Run Prediction"</div>
+                <div style="font-size:11px;margin-top:8px;color:var(--text-muted);">to see ML output</div>
+              </div>
+            </div>
+            <!-- Model info -->
+            <div class="card" style="margin-top:16px;">
+              <div class="card-header">
+                <div class="card-title"><i data-lucide="info" class="card-title-icon"></i> Model Metrics</div>
+              </div>
+              <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;">
+                  <div><div style="font-size:20px;font-weight:800;color:var(--accent-green);" id="m-acc">—</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Accuracy</div></div>
+                  <div><div style="font-size:20px;font-weight:800;color:var(--accent-blue);" id="m-prec">—</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Precision</div></div>
+                  <div><div style="font-size:20px;font-weight:800;color:var(--accent-purple);" id="m-rec">—</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Recall</div></div>
+                  <div><div style="font-size:20px;font-weight:800;color:var(--accent-orange);" id="m-f1">—</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px;">F1-Score</div></div>
+                </div>
+              </div>
+              <div class="card" style="margin-top:16px;">
+                <div class="card-header">
+                  <div class="card-title"><i data-lucide="refresh-cw" class="card-title-icon"></i> Continuous Learning Workflow</div>
+                  <span class="card-badge">MongoDB</span>
+                </div>
+                <div class="card-body">
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;">
+                    <div>
+                      <div style="font-size:22px;font-weight:800;color:var(--accent-blue);" id="workflow-inputs">—</div>
+                      <div style="font-size:10px;color:var(--text-muted);">Inputs saved</div>
+                    </div>
+                    <div>
+                      <div style="font-size:22px;font-weight:800;color:var(--accent-purple);" id="workflow-labeled">—</div>
+                      <div style="font-size:10px;color:var(--text-muted);">Outcomes labeled</div>
+                    </div>
+                    <div>
+                      <div style="font-size:22px;font-weight:800;color:var(--accent-orange);" id="workflow-next">—</div>
+                      <div style="font-size:10px;color:var(--text-muted);">Next retraining</div>
+                    </div>
+                    <div>
+                      <div style="font-size:12px;font-weight:700;color:var(--accent-green);padding-top:5px;">AUTOMATIC</div>
+                      <div style="font-size:10px;color:var(--text-muted);">Retrain every 100 labels</div>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                    <strong>1.</strong> Every prediction input is stored in MongoDB
+                    <code>prediction_inputs</code>.
+                    <strong>2.</strong> After delivery, select <em>Actually On Time</em> or
+                    <em>Actually Delayed</em> below the prediction.
+                    <strong>3.</strong> The model retrains automatically after each 100th labeled outcome.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ MONGO ══════ -->
+      <div class="view" id="view-mongo">
+        <div class="section-header">
+          <div class="section-title">MongoDB Schema Inspector</div>
+          <div class="section-desc">Explore the database architecture: JSON Schema validation, embedding, and referencing patterns.</div>
+        </div>
+
+        <!-- Collection Flow -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <div class="card-title"><i data-lucide="git-branch" class="card-title-icon"></i> Collection Architecture</div>
+            <span class="pipeline-tag">delivery_fleet DB</span>
+          </div>
+          <div class="card-body">
+            <div class="collection-flow">
+              <div class="coll-box">
+                <div class="coll-name">🗂️ drivers</div>
+                <div class="coll-desc">Reference collection<br/>Unique driver profiles</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">driver_id</div>
+                <div class="flow-arrow">⟵ $lookup ⟶</div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">REFERENCES</div>
+              </div>
+              <div class="coll-box" style="border-color:rgba(56,189,248,.3);">
+                <div class="coll-name">📦 orders</div>
+                <div class="coll-desc">Main collection · <span id="schema-orders-count">—</span> docs<br/>Validated by $jsonSchema</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">embedded</div>
+                <div class="flow-arrow">⟵ EMBED ⟶</div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">ARRAY</div>
+              </div>
+              <div class="coll-box" style="border-color:rgba(52,211,153,.3);">
+                <div class="coll-name">📍 checkpoint_logs</div>
+                <div class="coll-desc">Embedded sub-documents<br/>3 checkpoints per order</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="schema-grid">
+          <!-- JSON Schema Validator -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i data-lucide="shield-check" class="card-title-icon"></i> $jsonSchema Validator</div>
+            </div>
+            <div class="card-body" style="padding-top:0;">
+              <div class="code-block" style="margin-top:0;">
+                <button class="code-copy" onclick="copyCode(this)">Copy</button>
+<span class="cm">// orders collection validator</span>
+{
+  <span class="ky">"$jsonSchema"</span>: {
+    <span class="ky">"bsonType"</span>: <span class="st">"object"</span>,
+    <span class="ky">"required"</span>: [
+      <span class="st">"order_id"</span>, <span class="st">"driver_id"</span>,
+      <span class="st">"package_weight_kg"</span>,
+      <span class="st">"delivery_status"</span>,
+      <span class="st">"checkpoint_logs"</span>
+    ],
+    <span class="ky">"properties"</span>: {
+      <span class="ky">"package_weight_kg"</span>: {
+        <span class="ky">"bsonType"</span>: <span class="st">"double"</span>,
+        <span class="ky">"minimum"</span>: <span class="nb">0</span>
+      },
+      <span class="ky">"delivery_status"</span>: {
+        <span class="ky">"enum"</span>: [
+          <span class="st">"On Time"</span>,
+          <span class="st">"Delayed"</span>,
+          <span class="st">"Severely Delayed"</span>,
+          <span class="st">"Cancelled"</span>
+        ]
+      },
+      <span class="ky">"is_delayed"</span>: {
+        <span class="ky">"bsonType"</span>: <span class="st">"int"</span>,
+        <span class="ky">"minimum"</span>: <span class="nb">0</span>,
+        <span class="ky">"maximum"</span>: <span class="nb">1</span>
+      }
+    }
+  }
+}
+              </div>
+              <div class="validation-pills">
+                <span class="v-pill">Non-negative weight</span>
+                <span class="v-pill">Status enum guard</span>
+                <span class="v-pill">Binary is_delayed</span>
+                <span class="v-pill">Required fields</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Embedded checkpoint_logs -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i data-lucide="layers" class="card-title-icon"></i> Embedded checkpoint_logs</div>
+            </div>
+            <div class="card-body" style="padding-top:0;">
+              <div class="code-block">
+                <button class="code-copy" onclick="copyCode(this)">Copy</button>
+<span class="cm">// order document (embedding example)</span>
+{
+  <span class="ky">"order_id"</span>: <span class="st">"ORD-482910"</span>,
+  <span class="ky">"driver_id"</span>: <span class="st">"DRV-AB"</span>,
+  <span class="ky">"distance_km"</span>: <span class="nb">124.5</span>,
+  <span class="ky">"delivery_status"</span>: <span class="st">"In-Transit"</span>,
+  <span class="ky">"is_delayed"</span>: <span class="nb">0</span>,
+  <span class="ky">"checkpoint_logs"</span>: [
+    {
+      <span class="ky">"timestamp"</span>: <span class="kw">ISODate</span>(<span class="st">"2024-01-10T08:00Z"</span>),
+      <span class="ky">"location"</span>: <span class="st">"Checkpoint-1"</span>,
+      <span class="ky">"status"</span>: <span class="st">"Started"</span>
+    },
+    {
+      <span class="ky">"timestamp"</span>: <span class="kw">ISODate</span>(<span class="st">"2024-01-10T08:15Z"</span>),
+      <span class="ky">"location"</span>: <span class="st">"Checkpoint-2"</span>,
+      <span class="ky">"status"</span>: <span class="st">"In-Transit"</span>
+    },
+    {
+      <span class="ky">"timestamp"</span>: <span class="kw">ISODate</span>(<span class="st">"2024-01-10T08:30Z"</span>),
+      <span class="ky">"location"</span>: <span class="st">"Checkpoint-3"</span>,
+      <span class="ky">"status"</span>: <span class="st">"Arrived"</span>
+    }
+  ]
+}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Index Design -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i data-lucide="zap" class="card-title-icon"></i> Index Design</div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table">
+              <thead><tr><th>Collection</th><th>Field</th><th>Index Type</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge badge-blue">orders</span></td><td><code>order_id</code></td><td><span class="badge badge-green">Unique</span></td><td>Prevent duplicate order insertion</td></tr>
+                <tr><td><span class="badge badge-blue">orders</span></td><td><code>driver_id</code></td><td><span class="badge badge-blue">Compound</span></td><td>Fast lookups for $lookup aggregation</td></tr>
+                <tr><td><span class="badge badge-purple">drivers</span></td><td><code>driver_id</code></td><td><span class="badge badge-green">Unique</span></td><td>Reference integrity & fast joins</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ AGG ═════════ -->
+      <div class="view" id="view-agg">
+        <div class="section-header">
+          <div class="section-title">Aggregation Pipeline Analytics</div>
+          <div class="section-desc">Insights derived from MongoDB server-side aggregation pipelines using $group, $lookup, and $facet.</div>
+        </div>
+
+        <!-- STAT CARDS -->
+        <div class="agg-grid">
+          <div class="agg-stat-card">
+            <div class="agg-stat-icon"><i data-lucide="cloud-rain" style="width:20px;height:20px;"></i></div>
+            <div class="agg-stat-val">Snow</div>
+            <div class="agg-stat-label">Highest Delay Weather</div>
+          </div>
+          <div class="agg-stat-card">
+            <div class="agg-stat-icon"><i data-lucide="route" style="width:20px;height:20px;"></i></div>
+            <div class="agg-stat-val">142.3 km</div>
+            <div class="agg-stat-label">Avg Distance (Delayed)</div>
+          </div>
+          <div class="agg-stat-card">
+            <div class="agg-stat-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></div>
+            <div class="agg-stat-val">26</div>
+            <div class="agg-stat-label">Unique Drivers</div>
+          </div>
+        </div>
+
+        <!-- PIPELINE A & B -->
+        <div class="grid-2" style="margin-bottom:20px;">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title"><i data-lucide="bar-chart-2" class="card-title-icon"></i> Pipeline A: Status Metrics</div>
+                <div class="card-sub">$group by delivery_status</div>
+              </div>
+              <span class="pipeline-tag">$group · $avg · $sum</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap"><canvas id="aggStatusChart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title"><i data-lucide="cloud" class="card-title-icon"></i> Pipeline C: Weather Risk</div>
+                <div class="card-sub">$facet bottleneck_routes</div>
+              </div>
+              <span class="pipeline-tag">$facet · $avg</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap"><canvas id="weatherChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DRIVER PERFORMANCE -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><i data-lucide="users" class="card-title-icon"></i> Pipeline C: Driver Performance (Facet)</div>
+              <div class="card-sub">Delay rate per driver — $facet · $group · $project</div>
+            </div>
+            <span class="pipeline-tag">$facet · $divide</span>
+          </div>
+          <div class="card-body" id="driver-perf-list"></div>
+        </div>
+
+        <!-- LOOKUP PIPELINE CODE -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i data-lucide="code-2" class="card-title-icon"></i> Pipeline B: $lookup Join Code</div>
+          </div>
+          <div class="card-body" style="padding-top:0;">
+            <div class="code-block">
+              <button class="code-copy" onclick="copyCode(this)">Copy</button>
+<span class="cm"># Pipeline B — enrich orders with driver info</span>
+pipeline_b = [
+    {<span class="ky">"$lookup"</span>: {
+        <span class="ky">"from"</span>:         <span class="st">"drivers"</span>,
+        <span class="ky">"localField"</span>:   <span class="st">"driver_id"</span>,
+        <span class="ky">"foreignField"</span>: <span class="st">"driver_id"</span>,
+        <span class="ky">"as"</span>:           <span class="st">"driver_info"</span>,
+    }},
+    {<span class="ky">"$unwind"</span>: <span class="st">"$driver_info"</span>},
+    {<span class="ky">"$project"</span>: {
+        <span class="ky">"order_id"</span>:        <span class="nb">1</span>,
+        <span class="ky">"delivery_status"</span>: <span class="nb">1</span>,
+        <span class="ky">"driver_name"</span>:     <span class="st">"$driver_info.name"</span>,
+    }},
+    {<span class="ky">"$limit"</span>: <span class="nb">5</span>},
+]
+
+<span class="cm"># Results preview</span>
+<span class="kw">for</span> doc <span class="kw">in</span> orders.aggregate(pipeline_b):
+    pprint(doc)
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+let allOrders = [];
+let currentFilter = 'All';
+let charts = {};
+let liveStats = null;
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error(path + ' ' + res.status);
+  return res.json();
+}
+
+function setStatus(ok, text) {
+  const el = document.getElementById('sys-status');
+  el.innerHTML = `<div class="status-dot" style="${ok?'':'background:var(--accent-red)'}"></div> ${text}`;
+}
+
+async function refreshMetrics() {
+  try {
+    setStatus(true, 'Loading MongoDB…');
+    const [health, stats, orders, agg] = await Promise.all([
+      api('/api/health'),
+      api('/api/stats'),
+      api('/api/orders?limit=80'),
+      api('/api/aggregations'),
+    ]);
+    liveStats = stats;
+    allOrders = orders.orders || [];
+    setStatus(health.ok, `MongoDB live · ${health.orders.toLocaleString()} orders`);
+    populateMetrics(stats);
+    populateRecentOrders();
+    populateFleetTable();
+    updateCharts(stats, agg);
+    populateDriverPerf(agg.drivers || []);
+    const schemaCount = document.getElementById('schema-orders-count');
+    if (schemaCount) schemaCount.textContent = health.orders.toLocaleString();
+    if (stats.model) {
+      const fmt = (v) => (v==null ? '—' : v + '%');
+      document.getElementById('m-acc').textContent = fmt(stats.model.accuracy);
+      document.getElementById('m-prec').textContent = fmt(stats.model.precision);
+      document.getElementById('m-rec').textContent = fmt(stats.model.recall);
+      document.getElementById('m-f1').textContent = fmt(stats.model.f1);
+      const note = document.getElementById('model-train-note');
+      if (note && stats.model.train_rows) {
+        const featureCount = stats.model.features ? stats.model.features.length : 'selected';
+        note.textContent = `Model: Random Forest · ${stats.model.source} · ${featureCount} selected features`;
+      }
+      if (stats.model) {
+        document.getElementById('workflow-inputs').textContent =
+          (stats.model.prediction_inputs || 0).toLocaleString();
+        document.getElementById('workflow-labeled').textContent =
+          (stats.model.labeled_outcomes || 0).toLocaleString();
+        document.getElementById('workflow-next').textContent =
+          (stats.model.next_retraining_at || 100).toLocaleString();
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus(false, 'Backend offline — run python app.py');
+  }
+}
+
+function populateMetrics(stats) {
+  document.getElementById('m-orders').innerHTML = `<span style="font-size:32px;font-weight:800;">${stats.totalOrders.toLocaleString()}</span>`;
+  document.getElementById('m-ontime').innerHTML = `<span style="font-size:32px;font-weight:800;">${stats.onTimeRate}</span><span>%</span>`;
+  document.getElementById('m-risk').innerHTML = `<span style="font-size:32px;font-weight:800;">${stats.highRiskCount}</span>`;
+  document.getElementById('m-transit').innerHTML = `<span style="font-size:32px;font-weight:800;">${stats.avgTransitHours}</span><span>h</span>`;
+}
+
+// ─── STATUS BADGE HTML ──────────────────────────────────────────────────────
+function statusBadge(s) {
+  const map = {'On Time':'badge-green','Delayed':'badge-orange','Severely Delayed':'badge-red','Cancelled':'badge-purple'};
+  return `<span class="badge ${map[s]||'badge-blue'}"><span class="badge-dot"></span>${s}</span>`;
+}
+function riskBadge(r) {
+  const map = {'Critical':'badge-red','High':'badge-orange','Medium':'badge-blue','Low':'badge-green'};
+  return `<span class="badge ${map[r]||'badge-blue'}">${r}</span>`;
+}
+
+// ─── RECENT ORDERS ──────────────────────────────────────────────────────────
+function populateRecentOrders() {
+  const tbody = document.getElementById('recent-orders');
+  tbody.innerHTML = '';
+  allOrders.slice(0,6).forEach(o => {
+    tbody.innerHTML += `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-blue);">${o.id}</td>
+      <td>${o.driver}</td>
+      <td>${o.dist} km</td>
+      <td>${o.shipping}</td>
+      <td>${statusBadge(o.status)}</td>
+      <td>${riskBadge(o.risk)}</td>
+    </tr>`;
+  });
+}
+
+// ─── FLEET TABLE ────────────────────────────────────────────────────────────
+function populateFleetTable() {
+  const query = document.getElementById('fleet-search')?.value.toLowerCase()||'';
+  const tbody = document.getElementById('fleet-table-body');
+  tbody.innerHTML = '';
+  allOrders
+    .filter(o => currentFilter==='All' || o.status===currentFilter)
+    .filter(o => !query || o.id.toLowerCase().includes(query)||o.driver.toLowerCase().includes(query)||o.status.toLowerCase().includes(query))
+    .forEach(o => {
+      tbody.innerHTML += `<tr>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-blue);">${o.id}</td>
+        <td>${o.driver}</td>
+        <td>${o.dist}</td>
+        <td>${o.trafficMin} min</td>
+        <td>${o.weatherMin} min</td>
+        <td>${o.weight}</td>
+        <td>${statusBadge(o.status)}</td>
+        <td>${riskBadge(o.risk)}</td>
+      </tr>`;
+    });
+}
+function filterFleet() { populateFleetTable(); }
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  populateFleetTable();
+}
+
+// ─── NAVIGATION ─────────────────────────────────────────────────────────────
+const TITLES = {
+  dashboard: 'Dashboard Overview',
+  fleet: 'Active Fleet Monitor',
+  ml: 'ML Risk Predictor',
+  mongo: 'MongoDB Schema Inspector',
+  agg: 'Aggregation Analytics'
+};
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  document.getElementById('topbar-title').textContent = TITLES[name];
+  if(name==='fleet') populateFleetTable();
+  // close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+// ─── CHARTS ─────────────────────────────────────────────────────────────────
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+
+function makeVolumeChart(volume) {
+  const ctx = document.getElementById('volumeChart').getContext('2d');
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const data = volume || [0,0,0,0,0,0,0];
+  if (charts.volume) charts.volume.destroy();
+  charts.volume = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Orders',
+        data,
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,0.08)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#38bdf8',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, min: 0 }
+      }
+    }
+  });
+}
+
+function makeStatusChart(counts) {
+  const ctx = document.getElementById('statusChart').getContext('2d');
+  if (charts.status) charts.status.destroy();
+  charts.status = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['On Time','Delayed','Severely Delayed','Cancelled'],
+      datasets: [{
+        data: counts || [0,0,0,0],
+        backgroundColor: ['rgba(52,211,153,0.7)','rgba(251,146,60,0.7)','rgba(248,113,113,0.7)','rgba(167,139,250,0.7)'],
+        borderColor: ['#34d399','#fb923c','#f87171','#a78bfa'],
+        borderWidth: 2,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 12, font: { size: 10 } } }
+      },
+      cutout: '65%',
+    }
+  });
+}
+
+function makeAggCharts(agg) {
+  const ctx1 = document.getElementById('aggStatusChart').getContext('2d');
+  if (charts.aggStatus) charts.aggStatus.destroy();
+  charts.aggStatus = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: ['On Time','Delayed','Severely Delayed','Cancelled'],
+      datasets: [
+        { label: 'Avg Distance (km)', data: (agg && agg.avgDistance) || [0,0,0,0], backgroundColor: 'rgba(56,189,248,0.6)', borderColor: '#38bdf8', borderWidth: 1, borderRadius: 6 },
+        { label: 'Avg Delay Hours',   data: (agg && agg.avgDelay) || [0,0,0,0],         backgroundColor: 'rgba(248,113,113,0.4)', borderColor: '#f87171', borderWidth: 1, borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 10 } } },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' } }, y: { grid: { color: 'rgba(255,255,255,0.04)' } } }
+    }
+  });
+
+  const ctx2 = document.getElementById('weatherChart').getContext('2d');
+  if (charts.weather) charts.weather.destroy();
+  charts.weather = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: (agg && agg.shippingMethods) || ['Economy','Standard','Express','Same Day'],
+      datasets: [{
+        label: 'On-Time Rate',
+        data: (agg && agg.onTimeRates) || [0,0,0,0],
+        backgroundColor: ['rgba(52,211,153,0.7)','rgba(56,189,248,0.6)','rgba(251,146,60,0.6)','rgba(248,113,113,0.6)'],
+        borderColor: ['#34d399','#38bdf8','#fb923c','#f87171'],
+        borderWidth: 2, borderRadius: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, max: 100, ticks: { callback: v => v+'%' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' } },
+      }
+    }
+  });
+}
+
+function updateCharts(stats, agg) {
+  makeVolumeChart(stats.volumeByDow);
+  makeStatusChart(stats.statusCounts);
+  makeAggCharts(agg);
+}
+
+function populateDriverPerf(drivers) {
+  drivers = drivers || [];
+  const container = document.getElementById('driver-perf-list');
+  container.innerHTML = '';
+  drivers.forEach((d,i) => {
+    const pct = Math.round(d.delay_rate*100);
+    const color = d.delay_rate > 0.6 ? 'var(--accent-red)' : d.delay_rate > 0.4 ? 'var(--accent-orange)' : 'var(--accent-green)';
+    container.innerHTML += `<div class="driver-row">
+      <div class="driver-rank">#${i+1}</div>
+      <div class="driver-avatar">${(d.name||'??').slice(-2)}</div>
+      <div class="driver-info">
+        <div class="driver-name">${d.name}</div>
+        <div class="driver-meta">${d.total_orders} orders · delay rate: ${pct}%</div>
+      </div>
+      <div class="driver-bar-wrap">
+        <div class="driver-bar-track">
+          <div class="driver-bar-fill" style="width:${pct}%;background:${color};"></div>
+        </div>
+      </div>
+      <div style="width:40px;text-align:right;font-size:12px;font-weight:700;color:${color};">${pct}%</div>
+    </div>`;
+  });
+}
+
+// ─── ML PREDICTION ──────────────────────────────────────────────────────────
+async function runPrediction() {
+  const btn = document.getElementById('predict-btn');
+  const box = document.getElementById('prediction-box');
+  btn.classList.add('loading');
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;animation:spin 1s linear infinite;"></i> Analyzing…';
+
+  try {
+    const payload = {
+      distance_km: +document.getElementById('f-distance').value,
+      traffic_delay_minutes: +document.getElementById('f-traffic').value,
+      package_weight_kg: +document.getElementById('f-weight').value,
+      weather_delay_minutes: +document.getElementById('f-weather').value,
+      shipping_method: document.getElementById('f-shipping').value,
+      warehouse_processing_h: +document.getElementById('f-wh').value,
+      warehouse_capacity_pct: +document.getElementById('f-capacity').value,
+      inventory_availability: +document.getElementById('f-inventory').value,
+      package_volume_cm3: +document.getElementById('f-volume').value,
+      order_value: +document.getElementById('f-order-value').value,
+      courier_rating: +document.getElementById('f-rating').value,
+      courier_experience_yrs: +document.getElementById('f-experience').value,
+      weekend_flag: document.getElementById('f-weekend').checked ? 1 : 0,
+      holiday_flag: document.getElementById('f-holiday').checked ? 1 : 0,
+    };
+    const result = await api('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const delayed = result.delayed;
+    const colors = ['#38bdf8','#a78bfa','#fb923c','#34d399','#f87171','#94a3b8'];
+    const fi = (result.importances || []).map((f,i) => ({...f, color: colors[i % colors.length]}));
+    const confPct = delayed ? result.delay_probability : result.on_time_probability;
+
+    box.innerHTML = `
+      <div class="prediction-result animate-in">
+        <div class="prediction-badge ${delayed?'delayed':'on-time'}">
+          ${result.risk_level || (delayed ? 'High Risk of Delay' : 'Low Risk of Delay')}
+        </div>
+        <div class="confidence-row">
+          <div class="conf-item">
+            <div class="conf-label">On-Time Probability</div>
+            <div class="conf-value green">${result.on_time_probability}%</div>
+          </div>
+          <div style="width:1px;background:var(--border);"></div>
+          <div class="conf-item">
+            <div class="conf-label">Delay Risk Score</div>
+            <div class="conf-value red">${result.delay_probability}%</div>
+          </div>
+          <div style="width:1px;background:var(--border);"></div>
+          <div class="conf-item">
+            <div class="conf-label">Model Confidence</div>
+            <div class="conf-value" style="color:var(--accent-blue);">${confPct}%</div>
+          </div>
+        </div>
+        <div class="feature-importance">
+          <div class="fi-title">Feature Importance (trained model)</div>
+          ${fi.map(f=>`
+            <div class="fi-bar-row">
+              <div class="fi-bar-label"><span>${f.name}</span><span style="font-weight:700;color:var(--text-primary);">${f.val}%</span></div>
+              <div class="fi-bar-track"><div class="fi-bar-fill" style="width:${f.val}%;background:${f.color};"></div></div>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:16px;text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            After delivery, record the actual outcome to improve the model.
+          </div>
+          <button class="filter-btn" onclick="submitPredictionFeedback('${result.prediction_id}', 0)">Actually On Time</button>
+          <button class="filter-btn" onclick="submitPredictionFeedback('${result.prediction_id}', 1)">Actually Delayed</button>
+          <div id="feedback-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;"></div>
+        </div>
+      </div>`;
+  } catch (err) {
+    box.innerHTML = `<div class="prediction-placeholder">Prediction failed. Start the backend with <code>python app.py</code>.</div>`;
+  }
+
+  async function submitPredictionFeedback(predictionId, actualIsDelayed) {
+    const status = document.getElementById('feedback-status');
+    if (!status) return;
+    status.textContent = 'Saving outcome…';
+    try {
+      const result = await api('/api/prediction-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prediction_id: predictionId,
+          actual_is_delayed: actualIsDelayed,
+        }),
+      });
+      status.textContent = result.retrained
+        ? 'Outcome saved. Model retrained with the latest 100 labeled outcomes.'
+        : `Outcome saved. ${result.labeled_outcomes} labeled outcomes collected.`;
+    } catch (err) {
+      status.textContent = 'Could not save this outcome.';
+      console.error(err);
+    }
+  }
+
+  btn.classList.remove('loading');
+  btn.innerHTML = '<i data-lucide="cpu" style="width:16px;height:16px;"></i> Run Prediction';
+  lucide.createIcons();
+}
+
+// ─── COPY BUTTON ─────────────────────────────────────────────────────────────
+function copyCode(btn) {
+  const code = btn.parentElement.textContent.replace('Copy','').trim();
+  navigator.clipboard.writeText(code).then(()=>{
+    btn.textContent = 'Copied!';
+    setTimeout(()=>btn.textContent='Copy', 2000);
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  refreshMetrics();
+});
+</script>
+</body>
+</html>
